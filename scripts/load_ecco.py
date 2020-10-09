@@ -29,7 +29,11 @@ for t in np.linspace(1,312,312):
             # Sum up loaded data and place in array
             # Turn it into wmt calculation by multiplying by rho0 and 
             # dividing by \delta gamma
-            ecco_vals[key][:,int(t)-1] = 1024.5*np.sum(ecco_tmp[key],0)/0.1
+            if key == 'bin_vol':
+                fac = 1
+            else:
+                fac = 0.1
+            ecco_vals[key][:,int(t)-1] = 1024.5*np.sum(ecco_tmp[key],0)/fac
             
 # Put each term into a DataArray and all terms into a Datatset
 print('Loading to Dataset')
@@ -41,4 +45,4 @@ for key in ecco_tmp.keys():
                                  coords={'gamma_n':gammas,'time':times})
         
 # Save to a netcdf file
-ecco.to_netcdf('data/binned_vol_budget_month_dGamman_0.1.nc')
+ecco.to_netcdf('../data/processed/ECCO/binned_vol_budget_month_dGamman_0.1.nc')
