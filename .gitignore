@@ -1,2 +1,4 @@
 *.nc
 *.ipynb_checkpoints
+*.out
+*dask-worker-space*
