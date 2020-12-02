@@ -93,8 +93,7 @@ def _calc_dMdt(mass,gamman,gn_edges):
     # so define a new time coordinate
     timenew = M.time[:-1]+(M['time'].shift({'time':-1})-M['time'][:-1])/2
     
-    # Assign that coordinate for the time derivative and interpolate
-    # G to that time
+    # Assign that coordinate for the time derivative
     dMdt = dMdt.assign_coords(time=timenew)
 
     # Rename

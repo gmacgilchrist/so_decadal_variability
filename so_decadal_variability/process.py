@@ -24,7 +24,10 @@ def _get_specifics_flux(fluxname):
 
 def _get_specifics_ocean(oceanname):
     specific={}
-    specific['en4'] = {'suffix':'_197901-201812.nc'}
+    specific['en4'] = {'suffix':'_197901-201812.nc',
+                      'depthname':'depth'}
+    specific['iap'] = {'suffix':'_197901-201812.nc',
+                      'depthname':'depth_std'}
     return specific[oceanname]
 
 def _get_oceands(oceanname):
@@ -85,9 +88,19 @@ def _preprocess_oceanonly(oceands,gridds,timeslice):
     return ds
 
 def loaddata(fluxname, oceanname, timeslice):
+    specific=_get_specifics_ocean(oceanname)
+    # ocean
     oceands = _get_oceands(oceanname)
+    # grid
     gridds = _get_gridds(oceanname)
+    # flux
     fluxds = _get_fluxds(fluxname,oceanname)
+    
+    # Some renaming conventions
+    if specific['depthname']!='depth':
+        oceands = oceands.rename({specific['depthname']:'depth'})
+        gridds = gridds.rename({specific['depthname']:'depth'})
+        
     return _preprocess(fluxds,oceands,gridds,timeslice)
 
 def loaddata_oceanonly(oceanname, timeslice):
