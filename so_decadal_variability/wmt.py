@@ -103,3 +103,48 @@ def _calc_dMdt(mass,gamman,gn_edges):
 
 def calc_dMdt(ds,gn_edges):
     return _calc_dMdt(ds['mass'],ds['gamman'],gn_edges)
+
+### b-factor
+
+# Wrappers for derivative operations in xgcm
+def _xgcm_interp_and_derivative(da,xgrid,dim,boundary=None):
+    # Interpolate to grid cell boundaries
+    da_i = xgrid.interp(da,dim,boundary=boundary)
+    # Take the derivative
+    dadl = xgrid.derivative(da_i,dim,boundary=boundary)
+    return dadl
+    
+def _xgcm_interp_and_derivative_3D(da,xgrid,dims=['X','Y','Z'],boundaries=[None,None,None]):
+    
+    # Calculate gradients in X, Y and Z
+    dad1 = _xgcm_interp_and_derivative(da,xgrid,dims[0],boundaries[0])
+    dad2 = _xgcm_interp_and_derivative(da,xgrid,dims[1],boundaries[1])
+    dad3 = _xgcm_interp_and_derivative(da,xgrid,dims[2],boundaries[2])
+    
+    return dad1, dad2, dad3
+
+def _calc_bfactor(T,S,rho,alpha,beta,gamma,xgrid):
+    
+    # Derivatves in T, S, and gamma
+    dims = ['X','Y','Z']
+    boundaries = [None,'extend','extend']
+    dTdx,dTdy,dTdz = _xgcm_interp_and_derivative_3D(T,xgrid,dims,boundaries)
+    dSdx,dSdy,dSdz = _xgcm_interp_and_derivative_3D(S,xgrid,dims,boundaries)
+    dgdx,dgdy,dgdz = _xgcm_interp_and_derivative_3D(gamma,xgrid,dims,boundaries)
+    
+    # Locally referenced potential density
+    drdx = rho*(-alpha*dTdx + beta*dSdx)
+    drdy = rho*(-alpha*dTdy + beta*dSdy)
+    drdz = rho*(-alpha*dTdz + beta*dSdz)
+
+    # Calculate the absolute magnitudes
+    abs_drd = xr.ufuncs.sqrt(xr.ufuncs.square(drdx)+xr.ufuncs.square(drdy)+xr.ufuncs.square(drdz))
+    abs_dgd = xr.ufuncs.sqrt(xr.ufuncs.square(dgdx)+xr.ufuncs.square(dgdy)+xr.ufuncs.square(dgdz))
+        
+    # Calculate ratio
+    b = abs_drd/abs_dgd
+    
+    return b
+
+def calc_bfactor(ds,xgrid):
+    return _calc_bfactor(ds['ct'],ds['sa'],ds['rho'],ds['alpha'],ds['beta'],ds['gamman'],xgrid)
