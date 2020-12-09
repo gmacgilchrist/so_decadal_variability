@@ -55,10 +55,12 @@ def _calc_watermasstransformation(F,gamman,b,V,gn_edges):
         G[var] = histogram(gamman.where(~nanmask),bins=[gn_edges],weights=gFbV.where(~nanmask),dim=['lat','lon','depth'])/np.diff(gn_edges)
     return G
 
-def calc_watermasstransformation(ds,xgrid,gn_edges):
+def calc_watermasstransformation(ds,xgrid,gn_edges,b_ones=False):
     dsr4d = _calc_shortwave_penetration(ds,xgrid)
     mask = _create_mask(ds)
     F = _calc_densityflux(ds['fw']*mask,ds['ht']*mask,dsr4d,ds['sa'],ds['alpha'],ds['beta'],Cp=4200)
+    if b_ones:
+        ds['b'] = xr.ones_like(ds['b'])
     G = _calc_watermasstransformation(F,ds['gamman'],ds['b'],ds['vol4d'],gn_edges)
     
     return G
