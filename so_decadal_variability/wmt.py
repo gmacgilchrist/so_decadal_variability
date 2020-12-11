@@ -46,22 +46,29 @@ def _create_mask(ds):
 
 ### Watermass transformation calculation
     
-def _calc_watermasstransformation(F,gamman,b,V,gn_edges):
+def _calc_watermasstransformation(F,density,b,V,density_edges):
     # Discrete volume calculation derived in Appendix 7.5 of Groeskamp et al (2018)
     G = xr.Dataset()
     for var in F.data_vars:
-        gFbV = gamman*b*F[var]*V
+        gFbV = density*b*F[var]*V
         nanmask=np.isnan(gFbV)
-        G[var] = histogram(gamman.where(~nanmask),bins=[gn_edges],weights=gFbV.where(~nanmask),dim=['lat','lon','depth'])/np.diff(gn_edges)
+        G[var] = histogram(density.where(~nanmask),bins=[density_edges],weights=gFbV.where(~nanmask),dim=['lat','lon','depth'])/np.diff(density_edges)
     return G
 
-def calc_watermasstransformation(ds,xgrid,gn_edges,b_ones=False):
+def calc_watermasstransformation(ds,xgrid,gn_edges,density='gamman',b_ones=False):
     dsr4d = _calc_shortwave_penetration(ds,xgrid)
     mask = _create_mask(ds)
     F = _calc_densityflux(ds['fw']*mask,ds['ht']*mask,dsr4d,ds['sa'],ds['alpha'],ds['beta'],Cp=4200)
+    if density=='gamman':
+        density = ds['gamman']
+    elif density=='sigma0':
+        density = 1000+ds['sigma0']
+        ds['b'] = xr.ones_like(ds['b'])
+        
     if b_ones:
         ds['b'] = xr.ones_like(ds['b'])
-    G = _calc_watermasstransformation(F,ds['gamman'],ds['b'],ds['vol4d'],gn_edges)
+        
+    G = _calc_watermasstransformation(F,density,ds['b'],ds['vol4d'],gn_edges)
     
     return G
 
