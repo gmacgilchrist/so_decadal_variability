@@ -20,28 +20,37 @@ def _calc_shortwave_penetration(ds,xgrid):
     
     return dsr4d
 
-def _calc_densityflux(FW,Q,Qsw,S,alpha,beta,Cp=4200):
+def _calc_densityflux(FW,Q,S,alpha,beta,Cp=4200):
     
     F = xr.Dataset()
-    F['heat'] = (alpha/Cp)*Q + (alpha/Cp)*Qsw
+    F['heat'] = (alpha/Cp)*Q
     F['fw'] = -FW*S*beta
     F['total'] = F['heat']+F['fw']
     
     return F
 
-def calc_densityflux(ds,xgrid):
-    dsr4d = _calc_shortwave_penetration(ds,xgrid)
+def calc_densityflux(ds,xgrid,penetrative_sw=True):
     mask = _create_mask(ds)
-    F = _calc_densityflux(ds['fw']*mask,ds['ht']*mask,dsr4d,ds['sa'],ds['alpha'],ds['beta'])
+    if penetrative_sw:
+        dsr4d = _calc_shortwave_penetration(ds,xgrid)
+        Q = mask*ds['ht']+dsr4d
+    else:
+        Q = mask*(ds['ht']+ds['sr'])
+    FW = mask*ds['fw']
+    F = _calc_densityflux(FW,Q,ds['sa'],ds['alpha'],ds['beta'])
     
     return F
 
 def _create_mask(ds):
     # Create a 3D mask with 1/dz in the surface and zero elsewhere
-    idz = 1/ds['dz'][0].values
-    mask = xr.concat([idz*xr.ones_like(ds['sa'].isel(time=0,depth=0)),
+    if ds['dz'].size != 1:
+        idz = 1/ds['dz'][0].values
+        mask = xr.concat([idz*xr.ones_like(ds['sa'].isel(time=0,depth=0)),
                       xr.zeros_like(ds['sa'].isel(time=0,depth=slice(1,None)))],
                      dim='depth')
+    else:
+        idz = 1/ds['dz'].values
+        mask = idz*xr.ones_like(ds['sa'].isel(time=0))
     return mask
 
 ### Watermass transformation calculation
@@ -52,17 +61,20 @@ def _calc_watermasstransformation(F,density,b,V,density_edges):
     for var in F.data_vars:
         gFbV = density*b*F[var]*V
         nanmask=np.isnan(gFbV)
-        G[var] = histogram(density.where(~nanmask),bins=[density_edges],weights=gFbV.where(~nanmask),dim=['lat','lon','depth'])/np.diff(density_edges)
+        if 'depth' in density.dims:
+            intdims = ['lat','lon','depth']
+        else:
+            intdims = ['lat','lon']
+        G[var] = histogram(density.where(~nanmask),bins=[density_edges],weights=gFbV.where(~nanmask),dim=intdims)/np.diff(density_edges)
     return G
 
-def calc_watermasstransformation(ds,xgrid,gn_edges,density='gamman',b_ones=False):
-    dsr4d = _calc_shortwave_penetration(ds,xgrid)
-    mask = _create_mask(ds)
-    F = _calc_densityflux(ds['fw']*mask,ds['ht']*mask,dsr4d,ds['sa'],ds['alpha'],ds['beta'],Cp=4200)
+def calc_watermasstransformation(ds,xgrid,gn_edges,density='gamman',b_ones=False,penetrative_sw=True):
+    
+    F = calc_densityflux(ds,xgrid,penetrative_sw)
     if density=='gamman':
         density = ds['gamman']
     elif density=='sigma0':
-        density = 1000+ds['sigma0']
+        density = ds['sigma0']+1000
         ds['b'] = xr.ones_like(ds['b'])
         
     if b_ones:
