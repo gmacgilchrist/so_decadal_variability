@@ -44,7 +44,9 @@ def _get_specifics(name):
     specific['erai'] = {'suffix':'_1979-2018.nc',
                        'nameposition':slice(-24,-22)}
     specific['era5'] = {'suffix':'_1979-2019.nc',
-                       'nameposition':slice(-24,-22)}
+                       'nameposition':slice(-24,-22),
+                       'gridlon':'longitude',
+                       'gridlat':'latitude'}
     specific['jra55'] = {'suffix':'_1979-2019.nc',
                        'nameposition':slice(-25,-23)}
     specific['merra2'] = {'suffix':'_1980-2019.nc',
@@ -104,19 +106,31 @@ def _get_gridds(name):
     return xr.open_mfdataset(path)
 
 def _get_fluxds(fluxname,oceanname=None):
-    universal=_get_universal()
-    specific=_get_specifics_flux(fluxname)
+    path = _get_fluxpath(fluxname,oceanname)
+    return xr.open_mfdataset(path)
+    
     # Getting flux data (more complicated loading because of muddled time coordinate)
-    fluxfiles=[]
-    if oceanname is None:
-        filename = universal['prefix']+'flux_*'+fluxname+specific['suffix']
-    else:
-        filename = universal['prefix']+'flux_*'+fluxname+'_'+oceanname+specific['suffix']
-    for file in glob.glob(universal['rootdir']+'flux/'+filename):
-        f = file[specific['nameposition']]
-        if f in ['sr','fw','ht']:
-            fluxfiles.append(file)
-    return xr.open_mfdataset(fluxfiles)
+    
+    ### This was a hack that was in here before to select particular flux data
+    ### I'm not entirely sure of its purpose, since the appropriate data seems to be
+    ### collected irrespective. Will remove for now but may need to return to this.
+    
+#     universal=_get_universal()
+#     specific=_get_specifics_flux(fluxname)
+#     # Getting flux data (more complicated loading because of muddled time coordinate)
+#     fluxfiles=[]
+#     if oceanname is None:
+#         filename = universal['prefix']+'flux_*'+fluxname+specific['suffix']
+#     else:
+#         filename = universal['prefix']+'flux_*'+fluxname+'_'+oceanname+specific['suffix']
+#     for file in glob.glob(universal['rootdir']+'flux/'+filename):
+#         print(file)
+#         f = file[specific['nameposition']]
+#         if f in ['sr','fw','ht']:
+#             fluxfiles.append(file)
+#     print('Retrieving data from :')
+#     print(fluxfiles)
+#     return xr.open_mfdataset(fluxfiles)
 
 # PROCESSING
 def _preprocess(fluxds,oceands,gridds,timeslice,onoceangrid):

@@ -39,8 +39,8 @@ def calc_densityflux(ds,xgrid):
 def _create_mask(ds):
     # Create a 3D mask with 1/dz in the surface and zero elsewhere
     idz = 1/ds['dz'][0].values
-    mask = xr.concat([idz*xr.ones_like(ds['ct'].isel(time=0,depth=0)),
-                      xr.zeros_like(ds['ct'].isel(time=0,depth=slice(1,None)))],
+    mask = xr.concat([idz*xr.ones_like(ds['sa'].isel(time=0,depth=0)),
+                      xr.zeros_like(ds['sa'].isel(time=0,depth=slice(1,None)))],
                      dim='depth')
     return mask
 

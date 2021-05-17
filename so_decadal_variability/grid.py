@@ -2,6 +2,7 @@ import xarray as xr
 import numpy as np
 from xgcm import Grid
 from xgcm.autogenerate import generate_grid_ds
+from so_decadal_variability.process import _get_specifics
 
 # Creating an xgcm grid
 def _degrees_to_meters(dlon, dlat, lon, lat):
@@ -37,20 +38,20 @@ def _calc_outerdepths(depth):
     depth_i_vals[nk] = depth[nk-1]+(depth[nk-1]-depth_i_vals[nk-1])
     return depth_i_vals
 
-def get_xgcm(ds):
-    
-    ds = generate_grid_ds(ds, {'X':'lon','Y':'lat'})
+def get_xgcm(ds,gridlon,gridlat):
+
+    ds = generate_grid_ds(ds, {'X':gridlon,'Y':gridlat})
     xgrid = Grid(ds, periodic=['X'])
     
     # Get horizontal distances
-    dlonG = xgrid.diff(ds['lon'], 'X', boundary_discontinuity=360)
-    dlonC = xgrid.diff(ds['lon_left'], 'X', boundary_discontinuity=360)
+    dlonG = xgrid.diff(ds[gridlon], 'X', boundary_discontinuity=360)
+    dlonC = xgrid.diff(ds[gridlon+'_left'], 'X', boundary_discontinuity=360)
 
-    dlatG = xgrid.diff(ds['lat'], 'Y', boundary='fill', fill_value=np.nan)
-    dlatC = xgrid.diff(ds['lat_left'], 'Y', boundary='fill', fill_value=np.nan)
+    dlatG = xgrid.diff(ds[gridlat], 'Y', boundary='fill', fill_value=np.nan)
+    dlatC = xgrid.diff(ds[gridlat+'_left'], 'Y', boundary='fill', fill_value=np.nan)
     
-    ds['dxG'], ds['dyG'] = _degrees_to_meters(dlonG, dlatG, ds['lon'], ds['lat'])
-    ds['dxC'], ds['dyC'] = _degrees_to_meters(dlonC, dlatC, ds['lon'], ds['lat'])
+    ds['dxG'], ds['dyG'] = _degrees_to_meters(dlonG, dlatG, ds[gridlon], ds[gridlat])
+    ds['dxC'], ds['dyC'] = _degrees_to_meters(dlonC, dlatC, ds[gridlon], ds[gridlat])
     
     # Find depths of outer points
     if 'depth_bnds' in ds.data_vars:
@@ -63,10 +64,10 @@ def get_xgcm(ds):
     # Get depth distance
     ds['dz'] = ds['depth_i'].diff('depth_i').rename({'depth_i':'depth'}).assign_coords({'depth':ds['depth']})
     
-    # Regerate grid
+    # Regenerate grid
     coords = {
-        'X':{'center':'lon','left':'lon_left'},
-        'Y':{'center':'lat','left':'lat_left'},
+        'X':{'center':gridlon,'left':gridlon+'_left'},
+        'Y':{'center':gridlat,'left':gridlat+'_left'},
         'Z':{'center':'depth','outer':'depth_i'}
     }
     metrics = {
