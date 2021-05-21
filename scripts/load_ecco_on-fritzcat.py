@@ -13,7 +13,7 @@ gammas = np.arange(25,29.502,0.02)
 # Load ecco data
 rootdir = '/data2/project/ECCO4v4/binned_vol_budget_gamma_hv/'
 filename = 'binned_vol_budget_month_dGamman_0.02_'
-suffix = '_bowl_p2_BF_G'
+suffix = '_BF_G'
 files = glob.glob(rootdir+filename)
 ecco_vals = {}
 # Loop through time
@@ -46,5 +46,5 @@ for key in ecco_tmp.keys():
                                  coords={'gamma_n':gammas,'time':times})
         
 # Save to a netcdf file
-savefile = filename+suffix[1:-1]+'.nc'
+savefile = filename+suffix[1:]+'.nc'
 ecco.to_netcdf('/data2/project/macgilchrist/ECCO4v4/'+savefile)
