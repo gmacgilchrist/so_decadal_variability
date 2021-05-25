@@ -93,6 +93,7 @@ def _get_fluxpath(fluxname, oceanname=None, varname=None):
     
     if varname is not None:
         filename = universal['prefix']+'flux_'+varname+'_'+fluxname+'_'+oceanname+specific['suffix']
+        
     path = universal['rootdir']+universal['localdir']+'flux/'+filename
     return path
 

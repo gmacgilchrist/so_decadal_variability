@@ -2,7 +2,7 @@
 
 domain=SO
 source=en4
-gridtype=era5
+gridtype=merra2
 # datapath=/local/data/${source}/v4.2.1/
 # correction=g10
 datapath=/local/projecta/so_decadal_variability/ocean/
