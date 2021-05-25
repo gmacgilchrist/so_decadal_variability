@@ -18,31 +18,31 @@ def _get_universal():
 
 # Think I can combine these functions (to _get_specifics)
 # but leaving separate for now
-def _get_specifics_flux(fluxname):    
-    specific={}
-    specific['erai'] = {'suffix':'_1979-2018.nc',
-                       'nameposition':slice(-24,-22)}
-    specific['era5'] = {'suffix':'_1979-2019.nc',
-                       'nameposition':slice(-20,-18)}
-    specific['jra55'] = {'suffix':'_1979-2019.nc',
-                       'nameposition':slice(-25,-23)}
-    specific['merra2'] = {'suffix':'_1980-2019.nc',
-                       'nameposition':slice(-26,-24)}
-    return specific[fluxname]
+# def _get_specifics_flux(fluxname):    
+#     specific={}
+#     specific['erai'] = {'suffix':'_1979-2018.nc',
+#                        'nameposition':slice(-24,-22)}
+#     specific['era5'] = {'suffix':'_1979-2019.nc',
+#                        'nameposition':slice(-20,-18)}
+#     specific['jra55'] = {'suffix':'_1979-2019.nc',
+#                        'nameposition':slice(-25,-23)}
+#     specific['merra2'] = {'suffix':'_1980-2019.nc',
+#                        'nameposition':slice(-26,-24)}
+#     return specific[fluxname]
 
-def _get_specifics_ocean(oceanname):
-    specific={}
-    specific['en4'] = {'suffix':'_197901-201812.nc',
-                      'depthname':'depth'}
-    specific['iap'] = {'suffix':'_197901-201812.nc',
-                      'depthname':'depth_std'}
-    return specific[oceanname]
+# def _get_specifics_ocean(oceanname):
+#     specific={}
+#     specific['en4'] = {'suffix':'_197901-201812.nc',
+#                       'depthname':'depth'}
+#     specific['iap'] = {'suffix':'_197901-201812.nc',
+#                       'depthname':'depth_std'}
+#     return specific[oceanname]
 ##################
 
 def _get_specifics(name):    
     specific={}
     specific['erai'] = {'suffix':'_1979-2018.nc',
-                       'nameposition':slice(-24,-22)}
+                       'nameposition':slice(-24,-22),}
     specific['era5'] = {'suffix':'_1979-2019.nc',
                        'nameposition':slice(-24,-22),
                        'gridlon':'longitude',
@@ -50,7 +50,8 @@ def _get_specifics(name):
     specific['jra55'] = {'suffix':'_1979-2019.nc',
                        'nameposition':slice(-25,-23)}
     specific['merra2'] = {'suffix':'_1980-2019.nc',
-                       'nameposition':slice(-26,-24)}
+                        'nameposition':slice(-26,-24),
+                        'gridlon':'lon','gridlat':'lat'}
     specific['en4'] = {'suffix':'_197901-201812.nc',
                       'depthname':'depth'}
     specific['iap'] = {'suffix':'_197901-201812.nc',
@@ -60,7 +61,7 @@ def _get_specifics(name):
 ## PATHS
 def _get_oceanpath(oceanname, fluxname=None, varname=None):
     universal=_get_universal()
-    specific=_get_specifics_ocean(oceanname)
+    specific=_get_specifics(oceanname)
     
     if fluxname is None:
         filename = universal['prefix']+'ocean_*'+oceanname+specific['suffix']
@@ -83,17 +84,15 @@ def _get_gridpath(name, varname=None):
     path = universal['rootdir']+universal['localdir']+'grid/'+filename
     return path
 
-def _get_fluxpath(fluxname, oceanname=None, varname=None):
+def _get_fluxpath(fluxname, oceanname=None, varname='*[!e]'):
     universal=_get_universal()
-    specific=_get_specifics_flux(fluxname)
+    specific=_get_specifics(fluxname)
     if oceanname is None:
-        filename = universal['prefix']+'flux_*'+fluxname+specific['suffix']
+        ocean = ''
     else:
-        filename = universal['prefix']+'flux_*'+fluxname+'_'+oceanname+specific['suffix']
+        ocean = '_'+oceanname
     
-    if varname is not None:
-        filename = universal['prefix']+'flux_'+varname+'_'+fluxname+'_'+oceanname+specific['suffix']
-        
+    filename = universal['prefix']+'flux_'+varname+'_'+fluxname+ocean+specific['suffix']
     path = universal['rootdir']+universal['localdir']+'flux/'+filename
     return path
 
@@ -148,6 +147,13 @@ def _preprocess(fluxds,oceands,gridds,timeslice,onoceangrid):
         fluxds = fluxds.sel(timeselect)
 #         gridds = gridds.sel(timeselect)
         oceands = oceands.sel(timeselect).assign_coords({'time':fluxds['time'].sel(timeselect)})
+    
+    # Check for consistency of longitude coordinates
+    ### This is a temporary patch for merra2 (which has a very small
+    ### error in the longitude array), but could be instituted properly
+    if ~np.array_equal(oceands['lon'],fluxds['lon']):
+        oceands = oceands.assign_coords({'lon':fluxds['lon']})
+        
     # Merge
     ds = xr.merge([fluxds,oceands,gridds])
     # Roll longitude to it goes from 0 to 360
@@ -175,7 +181,6 @@ def _preprocess_oceanonly(oceands,gridds,timeslice, roll):
 
 # LOADING WRAPPERS
 def loaddata(fluxname, oceanname, timeslice, onoceangrid, debug=False):
-    specific=_get_specifics_ocean(oceanname)
     if onoceangrid:
         # ocean
         oceands = _get_oceands(oceanname)
@@ -192,9 +197,9 @@ def loaddata(fluxname, oceanname, timeslice, onoceangrid, debug=False):
         return oceands,gridds,fluxds
     
     # Some renaming conventions
-    if specific['depthname']!='depth':
-        oceands = oceands.rename({specific['depthname']:'depth'})
-        gridds = gridds.rename({specific['depthname']:'depth'})
+    if _get_specifics(oceanname)['depthname']!='depth':
+        oceands = oceands.rename({_get_specific(oceanname)['depthname']:'depth'})
+        gridds = gridds.rename({_get_specific(oceanname)['depthname']:'depth'})
         
     return _preprocess(fluxds,oceands,gridds,timeslice,onoceangrid)
 
