@@ -1,5 +1,5 @@
 clear; close all;
-addpath('~/packages/gcmfaces')
+p=genpath('~/packages/gcmfaces'); addpath(p);
 eccodir = '/data2/project/ECCO4v4/'
 if ~exist('nctiles_grid','dir')
 	command = ['ln -s ' eccodir 'nctiles_grid nctiles_grid'];
