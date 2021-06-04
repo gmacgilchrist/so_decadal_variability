@@ -47,7 +47,7 @@ def _get_specifics(name):
                        'nameposition':slice(-24,-22),
                        'gridlon':'longitude',
                        'gridlat':'latitude'}
-    specific['jra55'] = {'suffix':'_1979-2019.nc',
+    specific['jra55'] = {'suffix':'_1979-2020.nc',
                        'nameposition':slice(-25,-23)}
     specific['merra2'] = {'suffix':'_1980-2019.nc',
                         'nameposition':slice(-26,-24),
@@ -149,10 +149,12 @@ def _preprocess(fluxds,oceands,gridds,timeslice,onoceangrid):
         oceands = oceands.sel(timeselect).assign_coords({'time':fluxds['time'].sel(timeselect)})
     
     # Check for consistency of longitude coordinates
-    ### This is a temporary patch for merra2 (which has a very small
-    ### error in the longitude array), but could be instituted properly
+    ### This is a temporary patch for merra2 and jra55 (which have a very small
+    ### error in the longitude/latitude array), but could be instituted properly
     if ~np.array_equal(oceands['lon'],fluxds['lon']):
         oceands = oceands.assign_coords({'lon':fluxds['lon']})
+    if ~np.array_equal(oceands['lat'],fluxds['lat']):
+        oceands = oceands.assign_coords({'lat':fluxds['lat']})
         
     # Merge
     ds = xr.merge([fluxds,oceands,gridds])

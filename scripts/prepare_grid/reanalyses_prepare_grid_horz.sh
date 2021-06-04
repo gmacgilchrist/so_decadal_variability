@@ -2,8 +2,8 @@
 
 inpath=/local/projects/so_decadal_variability/flux/
 outpath=/local/projects/so_decadal_variability/grid/
-source=erai
-period=1979-2018
+source=jra55
+period=1979-2020
 
 rm ${outpath}SO_grid_des_${source}
 cdo griddes ${inpath}SO_flux_sst_${source}_${period}.nc > ${outpath}SO_grid_des_${source}

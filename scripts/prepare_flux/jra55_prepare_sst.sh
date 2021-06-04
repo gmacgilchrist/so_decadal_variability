@@ -11,5 +11,7 @@ outperiod=1979-2020
 rm ${outpath}${domain}_flux_sst_${source}_${outperiod}.nc
 cdo selname,var118 ${datapath}${source}_brtmp_${inperiod}.nc ${outpath}tmp.nc
 cdo sellonlatbox,-180,180,-90,-30 ${outpath}tmp.nc ${outpath}${domain}_tmp.nc
-cdo setname,sst ${outpath}${domain}_tmp.nc ${outpath}${domain}_flux_sst_${source}_${outperiod}.nc
+# Adjust the time axis to match up with the flux fields
+cdo settunits,days -settaxis,1979-01-01,00:00:00,1month ${outpath}${domain}_tmp.nc ${outpath}${domain}_timeadjust_tmp.nc
+cdo setname,sst ${outpath}${domain}_timeadjust_tmp.nc ${outpath}${domain}_flux_sst_${source}_${outperiod}.nc
 rm ${outpath}*tmp.nc
