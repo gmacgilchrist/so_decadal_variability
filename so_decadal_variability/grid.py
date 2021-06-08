@@ -38,8 +38,11 @@ def _calc_outerdepths(depth):
     depth_i_vals[nk] = depth[nk-1]+(depth[nk-1]-depth_i_vals[nk-1])
     return depth_i_vals
 
-def get_xgcm(ds,gridlon,gridlat):
+def get_xgcm(ds):
 
+    gridlon='lon'
+    gridlat='lat'
+    
     ds = generate_grid_ds(ds, {'X':gridlon,'Y':gridlat})
     xgrid = Grid(ds, periodic=['X'])
     

@@ -42,16 +42,25 @@ def _get_universal():
 def _get_specifics(name):    
     specific={}
     specific['erai'] = {'suffix':'_1979-2018.nc',
-                       'nameposition':slice(-24,-22),}
+                       'nameposition':slice(-24,-22),
+                       'gridlon':'longitude',
+                       'gridlat':'latitude',
+                       'tempoffset':-273.15}
     specific['era5'] = {'suffix':'_1979-2019.nc',
                        'nameposition':slice(-24,-22),
                        'gridlon':'longitude',
-                       'gridlat':'latitude'}
+                       'gridlat':'latitude',
+                       'tempoffset':0}
     specific['jra55'] = {'suffix':'_1979-2020.nc',
-                       'nameposition':slice(-25,-23)}
+                       'nameposition':slice(-25,-23),
+                       'gridlon':'lon',
+                       'gridlat':'lat',
+                       'tempoffset':-273.15}
     specific['merra2'] = {'suffix':'_1980-2019.nc',
                         'nameposition':slice(-26,-24),
-                        'gridlon':'lon','gridlat':'lat'}
+                        'gridlon':'lon',
+                        'gridlat':'lat',
+                        'tempoffset':-273.15}
     specific['en4'] = {'suffix':'_197901-201812.nc',
                       'depthname':'depth'}
     specific['iap'] = {'suffix':'_197901-201812.nc',
@@ -133,7 +142,7 @@ def _get_fluxds(fluxname,oceanname=None):
 #     return xr.open_mfdataset(fluxfiles)
 
 # PROCESSING
-def _preprocess(fluxds,oceands,gridds,timeslice,onoceangrid):
+def _preprocess(fluxds,oceands,gridds,timeslice,onoceangrid,specifics):
     # HACK : current hack to avoid time selection for gridfile
     # when on flux grid (which is static), whereas ocean grid 
     # has time dimension
@@ -151,13 +160,17 @@ def _preprocess(fluxds,oceands,gridds,timeslice,onoceangrid):
     # Check for consistency of longitude coordinates
     ### This is a temporary patch for merra2 and jra55 (which have a very small
     ### error in the longitude/latitude array), but could be instituted properly
-    if ~np.array_equal(oceands['lon'],fluxds['lon']):
-        oceands = oceands.assign_coords({'lon':fluxds['lon']})
-    if ~np.array_equal(oceands['lat'],fluxds['lat']):
-        oceands = oceands.assign_coords({'lat':fluxds['lat']})
+    if ~np.array_equal(oceands[specifics['gridlon']],fluxds[specifics['gridlon']]):
+        oceands = oceands.assign_coords(
+            {specifics['gridlon']:fluxds[specifics['gridlon']]})
+    if ~np.array_equal(oceands[specifics['gridlat']],fluxds[specifics['gridlat']]):
+        oceands = oceands.assign_coords(
+            {specifics['gridlat']:fluxds[specifics['gridlat']]})
         
     # Merge
     ds = xr.merge([fluxds,oceands,gridds])
+    # Change names of lon and lat
+    ds = ds.rename({specifics['gridlat']:'lat',specifics['gridlon']:'lon'})
     # Roll longitude to it goes from 0 to 360
 #     ds = ds.roll(lon=180,roll_coords=False).assign_coords({'lon':np.arange(0,360)})
     # Make heat flux positive into the ocean
@@ -166,6 +179,10 @@ def _preprocess(fluxds,oceands,gridds,timeslice,onoceangrid):
     # Turn gamman to a proper density
     if 'gamman' in ds.data_vars:
         ds['gamman']+=1000
+    # Apply offset to temperature
+    if 'sst' in ds.data_vars:
+        ds['sst']-=specifics['tempoffset'] 
+    
     return ds
 
 def _preprocess_oceanonly(oceands,gridds,timeslice, roll):
@@ -187,12 +204,14 @@ def loaddata(fluxname, oceanname, timeslice, onoceangrid, debug=False):
         # ocean
         oceands = _get_oceands(oceanname)
         # grid
-        gridds = _get_gridds(oceanname)
+        gridname = oceanname
+        gridds = _get_gridds(gridname)
         # flux
         fluxds = _get_fluxds(fluxname,oceanname)
     else:
         oceands = _get_oceands(oceanname,fluxname)
-        gridds = _get_gridds(fluxname)
+        gridname = fluxname
+        gridds = _get_gridds(gridname)
         fluxds = _get_fluxds(fluxname)
     
     if debug:
@@ -203,7 +222,8 @@ def loaddata(fluxname, oceanname, timeslice, onoceangrid, debug=False):
         oceands = oceands.rename({_get_specific(oceanname)['depthname']:'depth'})
         gridds = gridds.rename({_get_specific(oceanname)['depthname']:'depth'})
         
-    return _preprocess(fluxds,oceands,gridds,timeslice,onoceangrid)
+    return _preprocess(fluxds,oceands,gridds,
+                       timeslice,onoceangrid,_get_specifics(gridname))
 
 def loaddata_oceanonly(oceanname, timeslice, roll=True):
     
