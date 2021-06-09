@@ -181,7 +181,7 @@ def _preprocess(fluxds,oceands,gridds,timeslice,onoceangrid,specifics):
         ds['gamman']+=1000
     # Apply offset to temperature
     if 'sst' in ds.data_vars:
-        ds['sst']-=specifics['tempoffset'] 
+        ds['sst']+=specifics['tempoffset'] 
     
     return ds
 
