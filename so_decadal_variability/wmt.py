@@ -20,46 +20,67 @@ def _calc_shortwave_penetration(ds,xgrid):
     
     return dsr4d
 
-def _calc_densityflux(FW,Q,Qsw,S,alpha,beta,Cp=4200):
+def _calc_densityflux(FW,Q,S,alpha,beta,Cp=4200):
     
     F = xr.Dataset()
-    F['heat'] = (alpha/Cp)*Q + (alpha/Cp)*Qsw
+    F['heat'] = (alpha/Cp)*Q
     F['fw'] = -FW*S*beta
     F['total'] = F['heat']+F['fw']
     
     return F
 
-def calc_densityflux(ds,xgrid):
-    dsr4d = _calc_shortwave_penetration(ds,xgrid)
+def calc_densityflux(ds,xgrid,penetrative_sw=True):
     mask = _create_mask(ds)
-    F = _calc_densityflux(ds['fw']*mask,ds['ht']*mask,dsr4d,ds['sa'],ds['alpha'],ds['beta'])
+    if penetrative_sw:
+        dsr4d = _calc_shortwave_penetration(ds,xgrid)
+        Q = mask*ds['ht']+dsr4d
+    else:
+        Q = mask*(ds['ht']+ds['sr'])
+    FW = mask*ds['fw']
+    F = _calc_densityflux(FW,Q,ds['sa'],ds['alpha'],ds['beta'])
     
     return F
 
 def _create_mask(ds):
     # Create a 3D mask with 1/dz in the surface and zero elsewhere
-    idz = 1/ds['dz'][0].values
-    mask = xr.concat([idz*xr.ones_like(ds['ct'].isel(time=0,depth=0)),
-                      xr.zeros_like(ds['ct'].isel(time=0,depth=slice(1,None)))],
+    if ds['dz'].size != 1:
+        idz = 1/ds['dz'][0].values
+        mask = xr.concat([idz*xr.ones_like(ds['sa'].isel(time=0,depth=0)),
+                      xr.zeros_like(ds['sa'].isel(time=0,depth=slice(1,None)))],
                      dim='depth')
+    else:
+        idz = 1/ds['dz'].values
+        mask = idz*xr.ones_like(ds['sa'].isel(time=0))
     return mask
 
 ### Watermass transformation calculation
     
-def _calc_watermasstransformation(F,gamman,b,V,gn_edges):
+def _calc_watermasstransformation(F,density,b,V,density_edges):
     # Discrete volume calculation derived in Appendix 7.5 of Groeskamp et al (2018)
     G = xr.Dataset()
     for var in F.data_vars:
-        gFbV = gamman*b*F[var]*V
+        gFbV = density*b*F[var]*V
         nanmask=np.isnan(gFbV)
-        G[var] = histogram(gamman.where(~nanmask),bins=[gn_edges],weights=gFbV.where(~nanmask),dim=['lat','lon','depth'])/np.diff(gn_edges)
+        if 'depth' in density.dims:
+            intdims = ['lat','lon','depth']
+        else:
+            intdims = ['lat','lon']
+        G[var] = histogram(density.where(~nanmask),bins=[density_edges],weights=gFbV.where(~nanmask),dim=intdims)/np.diff(density_edges)
     return G
 
-def calc_watermasstransformation(ds,xgrid,gn_edges):
-    dsr4d = _calc_shortwave_penetration(ds,xgrid)
-    mask = _create_mask(ds)
-    F = _calc_densityflux(ds['fw']*mask,ds['ht']*mask,dsr4d,ds['sa'],ds['alpha'],ds['beta'],Cp=4200)
-    G = _calc_watermasstransformation(F,ds['gamman'],ds['b'],ds['vol4d'],gn_edges)
+def calc_watermasstransformation(ds,xgrid,gn_edges,density='gamman',b_ones=False,penetrative_sw=True):
+    
+    F = calc_densityflux(ds,xgrid,penetrative_sw)
+    if density=='gamman':
+        density = ds['gamman']
+    elif density=='sigma0':
+        density = ds['sigma0']+1000
+        ds['b'] = xr.ones_like(ds['b'])
+        
+    if b_ones:
+        ds['b'] = xr.ones_like(ds['b'])
+        
+    G = _calc_watermasstransformation(F,density,ds['b'],ds['vol4d'],gn_edges)
     
     return G
 
@@ -93,8 +114,7 @@ def _calc_dMdt(mass,gamman,gn_edges):
     # so define a new time coordinate
     timenew = M.time[:-1]+(M['time'].shift({'time':-1})-M['time'][:-1])/2
     
-    # Assign that coordinate for the time derivative and interpolate
-    # G to that time
+    # Assign that coordinate for the time derivative
     dMdt = dMdt.assign_coords(time=timenew)
 
     # Rename
@@ -104,3 +124,48 @@ def _calc_dMdt(mass,gamman,gn_edges):
 
 def calc_dMdt(ds,gn_edges):
     return _calc_dMdt(ds['mass'],ds['gamman'],gn_edges)
+
+### b-factor
+
+# Wrappers for derivative operations in xgcm
+def _xgcm_interp_and_derivative(da,xgrid,dim,boundary=None):
+    # Interpolate to grid cell boundaries
+    da_i = xgrid.interp(da,dim,boundary=boundary)
+    # Take the derivative
+    dadl = xgrid.derivative(da_i,dim,boundary=boundary)
+    return dadl
+    
+def _xgcm_interp_and_derivative_3D(da,xgrid,dims=['X','Y','Z'],boundaries=[None,None,None]):
+    
+    # Calculate gradients in X, Y and Z
+    dad1 = _xgcm_interp_and_derivative(da,xgrid,dims[0],boundaries[0])
+    dad2 = _xgcm_interp_and_derivative(da,xgrid,dims[1],boundaries[1])
+    dad3 = _xgcm_interp_and_derivative(da,xgrid,dims[2],boundaries[2])
+    
+    return dad1, dad2, dad3
+
+def _calc_bfactor(T,S,rho,alpha,beta,gamma,xgrid):
+    
+    # Derivatves in T, S, and gamma
+    dims = ['X','Y','Z']
+    boundaries = [None,'extend','extend']
+    dTdx,dTdy,dTdz = _xgcm_interp_and_derivative_3D(T,xgrid,dims,boundaries)
+    dSdx,dSdy,dSdz = _xgcm_interp_and_derivative_3D(S,xgrid,dims,boundaries)
+    dgdx,dgdy,dgdz = _xgcm_interp_and_derivative_3D(gamma,xgrid,dims,boundaries)
+    
+    # Locally referenced potential density
+    drdx = rho*(-alpha*dTdx + beta*dSdx)
+    drdy = rho*(-alpha*dTdy + beta*dSdy)
+    drdz = rho*(-alpha*dTdz + beta*dSdz)
+
+    # Calculate the absolute magnitudes
+    abs_drd = xr.ufuncs.sqrt(xr.ufuncs.square(drdx)+xr.ufuncs.square(drdy)+xr.ufuncs.square(drdz))
+    abs_dgd = xr.ufuncs.sqrt(xr.ufuncs.square(dgdx)+xr.ufuncs.square(dgdy)+xr.ufuncs.square(dgdz))
+        
+    # Calculate ratio
+    b = abs_drd/abs_dgd
+    
+    return b
+
+def calc_bfactor(ds,xgrid):
+    return _calc_bfactor(ds['ct'],ds['sa'],ds['rho'],ds['alpha'],ds['beta'],ds['gamman'],xgrid)

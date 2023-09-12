@@ -1,5 +1,10 @@
 README.md
 setup.py
+so_decadal_variability/__init__.py
+so_decadal_variability/calc.py
+so_decadal_variability/grid.py
+so_decadal_variability/process.py
+so_decadal_variability/wmt.py
 src.egg-info/PKG-INFO
 src.egg-info/SOURCES.txt
 src.egg-info/dependency_links.txt

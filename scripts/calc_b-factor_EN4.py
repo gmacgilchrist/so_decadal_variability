@@ -1,5 +1,6 @@
 # Python script to calculate the b-factor from EN4 hydrographic data
 # gmac 8/10/20
+# gmac 2/12/20: adjusting to also work with iap
 
 import xarray as xr
 import numpy as np
@@ -10,8 +11,8 @@ import glob
 rootdir = '/local/projects/so_decadal_variability/'
 localdir = ''
 prefix = 'SO_'
-grid_name = 'en4'
-ocean_name = 'en4'
+grid_name = 'iap'
+ocean_name = 'iap'
 grid_suffix = '.nc'
 ocean_suffix = '_197901-201812.nc'
 
@@ -23,6 +24,8 @@ filename = prefix+'grid_*'+grid_name+grid_suffix
 grid = xr.open_mfdataset(rootdir+'grid/*'+filename)
 ds = xr.merge([ocean,grid])
 
+if ocean_name=='iap':
+    ds = ds.rename({'depth_std':'depth'})
 
 # Create xgcm Grid object
 @jit(nopython=True)
@@ -61,6 +64,18 @@ def calc_spacing_from_latlon(lat,lon):
                                          degrees=True)
     return dx, dy
 
+def _calc_outerdepths(depth):
+    '''Given the cell-centre depth points, determine the outer points.
+    Assumption that the first outer point is at the ocean surface, z=0.'''
+    
+    nk = len(depth)
+    depth_i_vals = np.zeros(nk+1)
+    for k in range(nk):
+        if k>0:
+            depth_i_vals[k] = (depth[k-1]+depth[k])/2
+    depth_i_vals[nk] = depth[nk-1]+(depth[nk-1]-depth_i_vals[nk-1])
+    return depth_i_vals
+
 # Specify coordinates with ghost points
 lonG = np.append(ds['lon']+0.5,ds['lon'][-1]+1.5,)
 latG = np.append(ds['lat']+0.5,ds['lat'][-1]+1.5,)
@@ -81,8 +96,12 @@ ds['dyC'] = xr.DataArray(dyC,dims=['lon','lat'])
 ds['dxG'] = xr.DataArray(dxG,dims=['lonG','lat'])
 ds['dyG'] = xr.DataArray(dyG,dims=['lon','latG'])
 # Find depths of outer points
-depth_i_vals = np.append(grid.depth_bnds.isel(bnds=0), grid.depth_bnds.isel(bnds=1)[-1])
+if 'depth_bnds' in ds.data_vars:
+    depth_i_vals = np.append(grid.depth_bnds.isel(bnds=0), grid.depth_bnds.isel(bnds=1)[-1])
+else:
+    depth_i_vals = _calc_outerdepths(ds['depth'])
 ds['depth_i'] = xr.DataArray(depth_i_vals,coords={'depth_i':depth_i_vals},dims={'depth_i'})
+
 # Get depth distance
 ds['dz'] = ds['depth_i'].diff('depth_i').rename({'depth_i':'depth'}).assign_coords({'depth':ds['depth']})
 

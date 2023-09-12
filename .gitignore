@@ -2,4 +2,4 @@
 *.ipynb_checkpoints
 *.out
 *dask-worker-space*
-*__pycache__
+*__py-cache__*
